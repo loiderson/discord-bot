@@ -74,7 +74,7 @@ func initLavalink(s *discordgo.Session) error {
 	_, err := lava.AddNode(ctx, disgolink.NodeConfig{
 		Name:     "local",
 		Address:  "localhost:2333",
-		Password: "REDACTED",
+		Password: "YOUR-PASSWORD-HERE",
 		Secure:   false,
 	})
 	if err != nil {
