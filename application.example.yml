@@ -26,4 +26,4 @@ plugins:
     spotify:
       clientId: "YOUR-SPOTIFY-CLIENT-ID"
       clientSecret: "YOUR-SPOTIFY-CLIENT-SECRET"
-      countryCode: "CA"
+      countryCode: "YOUR-COUNTRY-CODE"
