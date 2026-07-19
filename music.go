@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +24,19 @@ var (
 	queueMu sync.Mutex
 	queues  = map[string][]lavalink.Track{}
 )
+
+// loadLavalinkPassword checks the environment first, then falls back
+// to a file outside the repo — same layered pattern as the bot token.
+func loadLavalinkPassword() (string, error) {
+	if p := os.Getenv("LAVALINK_PASSWORD"); p != "" {
+		return p, nil
+	}
+	path := os.Getenv("LAVALINK_PASSWORD_FILE")
+	if path == "" {
+		path = "../lavalink-password.txt"
+	}
+	return loadSecret(path)
+}
 
 // queueAdd appends a track and returns its position in line.
 func queueAdd(guildID string, t lavalink.Track) int {
@@ -64,6 +78,11 @@ func queueList(guildID string) []lavalink.Track {
 // ---------- Lavalink setup ----------
 
 func initLavalink(s *discordgo.Session) error {
+	password, err := loadLavalinkPassword()
+	if err != nil {
+		return fmt.Errorf("lavalink password: %w", err)
+	}
+
 	lava = disgolink.New(snowflake.MustParse(s.State.User.ID),
 		disgolink.WithListenerFunc(onTrackEnd),
 	)
@@ -71,10 +90,10 @@ func initLavalink(s *discordgo.Session) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	_, err := lava.AddNode(ctx, disgolink.NodeConfig{
+	_, err = lava.AddNode(ctx, disgolink.NodeConfig{
 		Name:     "local",
 		Address:  "localhost:2333",
-		Password: "YOUR-PASSWORD-HERE",
+		Password: password,
 		Secure:   false,
 	})
 	if err != nil {

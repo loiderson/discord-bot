@@ -10,7 +10,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-func loadToken(path string) (string, error) {
+func loadSecret(path string) (string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", fmt.Errorf("could not read token file: %w", err)
@@ -24,7 +24,7 @@ func main() {
 		path = "../bot-token.txt"
 	}
 
-	token, err := loadToken(path)
+	token, err := loadSecret(path)
 	if err != nil {
 		fmt.Println("Error loading token:", err)
 		return
