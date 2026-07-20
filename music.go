@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"os"
 	"strings"
 	"sync"
@@ -73,6 +74,16 @@ func queueList(guildID string) []lavalink.Track {
 	out := make([]lavalink.Track, len(q))
 	copy(out, q)
 	return out
+}
+
+func queueShuffle(guildID string) int {
+	queueMu.Lock()
+	defer queueMu.Unlock()
+	q := queues[guildID]
+	rand.Shuffle(len(q), func(i, j int) {
+		q[i], q[j] = q[j], q[i]
+	})
+	return len(q)
 }
 
 // ---------- Lavalink setup ----------
@@ -272,4 +283,17 @@ func cmdStop(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
 		return
 	}
 	s.ChannelMessageSend(m.ChannelID, "⏹️ stopped and cleared the queue")
+}
+
+func cmdShuffle(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
+	n := queueShuffle(m.GuildID)
+	if n == 0 {
+		s.ChannelMessageSend(m.ChannelID, "the queue is empty — nothing to shuffle")
+		return
+	}
+	if n == 1 {
+		s.ChannelMessageSend(m.ChannelID, "only one track queued — that was quick 🎲")
+		return
+	}
+	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("🔀 shuffled %d tracks — !queue to see the new order", n))
 }

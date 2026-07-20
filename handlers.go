@@ -9,15 +9,16 @@ import (
 type commandFunc func(s *discordgo.Session, m *discordgo.MessageCreate, args []string)
 
 var commands = map[string]commandFunc{
-	"ping":  cmdPing,
-	"echo":  cmdEcho,
-	"roll":  cmdRoll,
-	"play":  cmdPlay,
-	"stop":  cmdStop,
-	"pause": cmdPause,
-	"skip":  cmdSkip,
-	"queue": cmdQueue,
-	"help":  cmdHelp,
+	"ping":    cmdPing,
+	"echo":    cmdEcho,
+	"roll":    cmdRoll,
+	"play":    cmdPlay,
+	"stop":    cmdStop,
+	"pause":   cmdPause,
+	"skip":    cmdSkip,
+	"queue":   cmdQueue,
+	"help":    cmdHelp,
+	"shuffle": cmdShuffle,
 }
 
 func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
