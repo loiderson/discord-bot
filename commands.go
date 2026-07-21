@@ -35,6 +35,7 @@ func cmdHelp(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
     !skip                    skip to the next track in the queue
     !stop                    stop playback and leave the voice channel
     !loop                    toggle loop mode (current track will repeat)
+    !unloop                  disable loop mode
 
   Queue
     !queue                   show the current queue

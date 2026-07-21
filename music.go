@@ -33,12 +33,11 @@ var (
 	loopModes = map[string]bool{}
 )
 
-// loopToggle flips loop for a guild and returns the new state.
-func loopToggle(guildID string) bool {
+// loopSet turns loop on or off for a guild.
+func loopSet(guildID string, on bool) {
 	loopMu.Lock()
 	defer loopMu.Unlock()
-	loopModes[guildID] = !loopModes[guildID]
-	return loopModes[guildID]
+	loopModes[guildID] = on
 }
 
 // loopEnabled reports whether loop is on (safe to call from any goroutine).
@@ -325,13 +324,21 @@ func cmdUnpause(s *discordgo.Session, m *discordgo.MessageCreate, args []string)
 	setPause(s, m, false)
 }
 
-func cmdLoop(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
-	on := loopToggle(m.GuildID)
+func setLoop(s *discordgo.Session, m *discordgo.MessageCreate, on bool) {
+	loopSet(m.GuildID, on)
 	if on {
 		s.ChannelMessageSend(m.ChannelID, codeBox("🔁 loop enabled — current track will repeat"))
 	} else {
 		s.ChannelMessageSend(m.ChannelID, codeBox("➡️ loop disabled"))
 	}
+}
+
+func cmdLoop(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
+	setLoop(s, m, true)
+}
+
+func cmdUnloop(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
+	setLoop(s, m, false)
 }
 
 func cmdStop(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
