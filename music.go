@@ -26,6 +26,11 @@ var (
 	queues  = map[string][]lavalink.Track{}
 )
 
+// codeBox wraps text in a Discord code block for a clean boxed look.
+func codeBox(text string) string {
+	return "```\n" + text + "\n```"
+}
+
 // loadLavalinkPassword checks the environment first, then falls back
 // to a file outside the repo — same layered pattern as the bot token.
 func loadLavalinkPassword() (string, error) {
@@ -153,13 +158,13 @@ func onVoiceServerUpdate(s *discordgo.Session, e *discordgo.VoiceServerUpdate) {
 
 func cmdPlay(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
 	if len(args) == 0 {
-		s.ChannelMessageSend(m.ChannelID, "usage: !play <youtube link or search words>")
+		s.ChannelMessageSend(m.ChannelID, codeBox("usage: !play <youtube link or search words>"))
 		return
 	}
 
 	vs, err := s.State.VoiceState(m.GuildID, m.Author.ID)
 	if err != nil {
-		s.ChannelMessageSend(m.ChannelID, "you need to be in a voice channel first")
+		s.ChannelMessageSend(m.ChannelID, codeBox("you need to be in a voice channel first"))
 		return
 	}
 
@@ -185,10 +190,10 @@ func cmdPlay(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
 			toPlay = &tracks[0]
 		},
 		func() {
-			s.ChannelMessageSend(m.ChannelID, "nothing found for: "+strings.Join(args, " "))
+			s.ChannelMessageSend(m.ChannelID, codeBox("nothing found for: "+strings.Join(args, " ")))
 		},
 		func(err error) {
-			s.ChannelMessageSend(m.ChannelID, "error looking up track: "+err.Error())
+			s.ChannelMessageSend(m.ChannelID, codeBox("error looking up track: "+err.Error()))
 		},
 	))
 	if toPlay == nil {
@@ -199,26 +204,26 @@ func cmdPlay(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
 	if player.Track != nil {
 		pos := queueAdd(m.GuildID, *toPlay)
 		s.ChannelMessageSend(m.ChannelID,
-			fmt.Sprintf("➕ Queued **%s** (position %d)", toPlay.Info.Title, pos))
+			codeBox(fmt.Sprintf("➕ Queued %s (position %d)", toPlay.Info.Title, pos)))
 		return
 	}
 
 	if err := s.ChannelVoiceJoinManual(m.GuildID, vs.ChannelID, false, true); err != nil {
-		s.ChannelMessageSend(m.ChannelID, "couldn't join voice: "+err.Error())
+		s.ChannelMessageSend(m.ChannelID, codeBox("couldn't join voice: "+err.Error()))
 		return
 	}
 
 	if err := player.Update(context.TODO(), disgolink.WithTrack(*toPlay)); err != nil {
-		s.ChannelMessageSend(m.ChannelID, "couldn't start playback: "+err.Error())
+		s.ChannelMessageSend(m.ChannelID, codeBox("couldn't start playback: "+err.Error()))
 		return
 	}
-	s.ChannelMessageSend(m.ChannelID, "▶️ Now playing: "+toPlay.Info.Title)
+	s.ChannelMessageSend(m.ChannelID, codeBox("▶️ Now playing: "+toPlay.Info.Title))
 }
 
 func cmdSkip(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
 	player := lava.ExistingPlayer(snowflake.MustParse(m.GuildID))
 	if player == nil || player.Track == nil {
-		s.ChannelMessageSend(m.ChannelID, "nothing is playing")
+		s.ChannelMessageSend(m.ChannelID, codeBox("nothing is playing"))
 		return
 	}
 
@@ -226,74 +231,92 @@ func cmdSkip(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
 	if !ok {
 		// nothing queued — just stop the current track (bot stays in channel)
 		if err := player.Update(context.TODO(), disgolink.WithNullTrack()); err != nil {
-			s.ChannelMessageSend(m.ChannelID, "error: "+err.Error())
+			s.ChannelMessageSend(m.ChannelID, codeBox("error: "+err.Error()))
 			return
 		}
-		s.ChannelMessageSend(m.ChannelID, "⏭️ skipped — queue is empty")
+		s.ChannelMessageSend(m.ChannelID, codeBox("⏭️ skipped — queue is empty"))
 		return
 	}
 
 	if err := player.Update(context.TODO(), disgolink.WithTrack(next)); err != nil {
-		s.ChannelMessageSend(m.ChannelID, "error: "+err.Error())
+		s.ChannelMessageSend(m.ChannelID, codeBox("error: "+err.Error()))
 		return
 	}
-	s.ChannelMessageSend(m.ChannelID, "⏭️ Now playing: "+next.Info.Title)
+	s.ChannelMessageSend(m.ChannelID, codeBox("⏭️ Now playing: "+next.Info.Title))
 }
 
 func cmdQueue(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
 	tracks := queueList(m.GuildID)
 	if len(tracks) == 0 {
-		s.ChannelMessageSend(m.ChannelID, "the queue is empty")
+		s.ChannelMessageSend(m.ChannelID, codeBox("the queue is empty"))
 		return
 	}
 	var b strings.Builder
-	b.WriteString("🎶 **Queue:**\n")
+	b.WriteString("🎶 Queue:\n")
 	for i, t := range tracks {
 		b.WriteString(fmt.Sprintf("%d. %s\n", i+1, t.Info.Title))
 	}
-	s.ChannelMessageSend(m.ChannelID, b.String())
+	s.ChannelMessageSend(m.ChannelID, codeBox(b.String()))
+}
+
+func setPause(s *discordgo.Session, m *discordgo.MessageCreate, paused bool) {
+	player := lava.ExistingPlayer(snowflake.MustParse(m.GuildID))
+	if player == nil {
+		s.ChannelMessageSend(m.ChannelID, codeBox("nothing is playing"))
+		return
+	}
+	if err := player.Update(context.TODO(), disgolink.WithPaused(paused)); err != nil {
+		s.ChannelMessageSend(m.ChannelID, codeBox("error: "+err.Error()))
+		return
+	}
+	if paused {
+		s.ChannelMessageSend(m.ChannelID, codeBox("⏸️ paused"))
+	} else {
+		s.ChannelMessageSend(m.ChannelID, codeBox("▶️ resumed"))
+	}
 }
 
 func cmdPause(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
-	player := lava.ExistingPlayer(snowflake.MustParse(m.GuildID))
-	if player == nil {
-		s.ChannelMessageSend(m.ChannelID, "nothing is playing")
-		return
-	}
-	if err := player.Update(context.TODO(), disgolink.WithPaused(!player.Paused)); err != nil {
-		s.ChannelMessageSend(m.ChannelID, "error: "+err.Error())
-		return
-	}
-	if player.Paused {
-		s.ChannelMessageSend(m.ChannelID, "⏸️ paused — !pause again to resume")
-	} else {
-		s.ChannelMessageSend(m.ChannelID, "▶️ resumed")
-	}
+	setPause(s, m, true)
+}
+
+func cmdUnpause(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
+	setPause(s, m, false)
 }
 
 func cmdStop(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
 	player := lava.ExistingPlayer(snowflake.MustParse(m.GuildID))
 	if player == nil {
-		s.ChannelMessageSend(m.ChannelID, "nothing is playing")
+		s.ChannelMessageSend(m.ChannelID, codeBox("nothing is playing"))
 		return
 	}
 	queueClear(m.GuildID) // stop means stop — drop everything queued too
 	if err := s.ChannelVoiceJoinManual(m.GuildID, "", false, false); err != nil {
-		s.ChannelMessageSend(m.ChannelID, "error while disconnecting: "+err.Error())
+		s.ChannelMessageSend(m.ChannelID, codeBox("error while disconnecting: "+err.Error()))
 		return
 	}
-	s.ChannelMessageSend(m.ChannelID, "⏹️ stopped and cleared the queue")
+	s.ChannelMessageSend(m.ChannelID, codeBox("⏹️ stopped and cleared the queue"))
+}
+
+func cmdClear(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
+	tracks := queueList(m.GuildID)
+	if len(tracks) == 0 {
+		s.ChannelMessageSend(m.ChannelID, codeBox("the queue is already empty"))
+		return
+	}
+	queueClear(m.GuildID)
+	s.ChannelMessageSend(m.ChannelID, codeBox(fmt.Sprintf("🗑️  cleared %d tracks from the queue", len(tracks))))
 }
 
 func cmdShuffle(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
 	n := queueShuffle(m.GuildID)
 	if n == 0 {
-		s.ChannelMessageSend(m.ChannelID, "the queue is empty — nothing to shuffle")
+		s.ChannelMessageSend(m.ChannelID, codeBox("the queue is empty — nothing to shuffle"))
 		return
 	}
 	if n == 1 {
-		s.ChannelMessageSend(m.ChannelID, "only one track queued — that was quick 🎲")
+		s.ChannelMessageSend(m.ChannelID, codeBox("only one track queued — that was quick 🎲"))
 		return
 	}
-	s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("🔀 shuffled %d tracks — !queue to see the new order", n))
+	s.ChannelMessageSend(m.ChannelID, codeBox(fmt.Sprintf("🔀 shuffled %d tracks — !queue to see the new order", n)))
 }

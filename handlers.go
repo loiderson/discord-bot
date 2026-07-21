@@ -15,6 +15,8 @@ var commands = map[string]commandFunc{
 	"play":    cmdPlay,
 	"stop":    cmdStop,
 	"pause":   cmdPause,
+	"unpause": cmdUnpause,
+	"clear":   cmdClear,
 	"skip":    cmdSkip,
 	"queue":   cmdQueue,
 	"help":    cmdHelp,
