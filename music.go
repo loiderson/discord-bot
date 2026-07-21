@@ -26,6 +26,35 @@ var (
 	queues  = map[string][]lavalink.Track{}
 )
 
+// ---------- Loop state: is single-track loop on for a given server? ----------
+
+var (
+	loopMu    sync.Mutex
+	loopModes = map[string]bool{}
+)
+
+// loopToggle flips loop for a guild and returns the new state.
+func loopToggle(guildID string) bool {
+	loopMu.Lock()
+	defer loopMu.Unlock()
+	loopModes[guildID] = !loopModes[guildID]
+	return loopModes[guildID]
+}
+
+// loopEnabled reports whether loop is on (safe to call from any goroutine).
+func loopEnabled(guildID string) bool {
+	loopMu.Lock()
+	defer loopMu.Unlock()
+	return loopModes[guildID]
+}
+
+// loopReset turns loop off for a guild.
+func loopReset(guildID string) {
+	loopMu.Lock()
+	defer loopMu.Unlock()
+	delete(loopModes, guildID)
+}
+
 // codeBox wraps text in a Discord code block for a clean boxed look.
 func codeBox(text string) string {
 	return "```\n" + text + "\n```"
@@ -119,12 +148,24 @@ func initLavalink(s *discordgo.Session) error {
 }
 
 // onTrackEnd fires when a track finishes for ANY reason.
-// If it ended naturally, advance to the next queued track.
+// If it ended naturally, either loop the current track or advance the queue.
 func onTrackEnd(event *disgolink.PlayerTrackEndEvent) {
 	if !event.Reason.MayStartNext() {
-		return // stopped/replaced on purpose — don't auto-advance
+		return // stopped/replaced/skipped on purpose — don't auto-continue
 	}
-	next, ok := queueNext(event.GetGuildID().String())
+
+	guildID := event.GetGuildID().String()
+
+	// Loop on? Replay the track that just finished, ignore the queue.
+	if loopEnabled(guildID) {
+		if err := event.Player.Update(context.TODO(), disgolink.WithTrack(event.Track)); err != nil {
+			fmt.Println("failed to loop track:", err)
+		}
+		return
+	}
+
+	// Normal behavior: advance to the next queued track.
+	next, ok := queueNext(guildID)
 	if !ok {
 		return // queue empty; playback simply ends
 	}
@@ -284,6 +325,15 @@ func cmdUnpause(s *discordgo.Session, m *discordgo.MessageCreate, args []string)
 	setPause(s, m, false)
 }
 
+func cmdLoop(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
+	on := loopToggle(m.GuildID)
+	if on {
+		s.ChannelMessageSend(m.ChannelID, codeBox("🔁 loop enabled — current track will repeat"))
+	} else {
+		s.ChannelMessageSend(m.ChannelID, codeBox("➡️ loop disabled"))
+	}
+}
+
 func cmdStop(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
 	player := lava.ExistingPlayer(snowflake.MustParse(m.GuildID))
 	if player == nil {
@@ -291,6 +341,7 @@ func cmdStop(s *discordgo.Session, m *discordgo.MessageCreate, args []string) {
 		return
 	}
 	queueClear(m.GuildID) // stop means stop — drop everything queued too
+	loopReset(m.GuildID)  // and reset loop state
 	if err := s.ChannelVoiceJoinManual(m.GuildID, "", false, false); err != nil {
 		s.ChannelMessageSend(m.ChannelID, codeBox("error while disconnecting: "+err.Error()))
 		return

@@ -21,6 +21,7 @@ var commands = map[string]commandFunc{
 	"queue":   cmdQueue,
 	"help":    cmdHelp,
 	"shuffle": cmdShuffle,
+	"loop":    cmdLoop,
 }
 
 func messageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
